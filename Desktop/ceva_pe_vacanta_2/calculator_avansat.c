@@ -6,6 +6,7 @@
 #include <math.h>
 
 #define MAX 100
+#define memory_size 100
 
 typedef struct {
 
@@ -208,25 +209,89 @@ int main(){
     char postfix[MAX][MAX];
     int postfixSize;
 
-    printf("Introdu o expresie : \n");
+    char history[memory_size][MAX];
+    double results[memory_size];
+    int histCount = 0;
 
-    fgets(infix, MAX, stdin);
-    infix[strcspn(infix, "\n")] = '\0';
+    double memory = 0.0;
+    int memory_set = 0;
 
-    infixToPosifix(infix,postfix, &postfixSize);
+    printf("Calculator avansat : \n");
+    printf("Comanda peciala : history, M+,MR,MC <expresie>, quit \n\n");
 
-    printf("Expresie in postfix : \n");
+    while(1){
 
-    for(int i=0;i<postfixSize;i++){
+        printf("> ");
+        
+        fgets(infix, MAX, stdin);
+        infix[strcspn(infix, "\n")] = '\0';
 
-        printf("%s ", postfix[i]);
+        if(strcmp(infix,"quit") == 0)
+            break;
+            
+        if(strcmp(infix,"history") == 0){
+            for(int i=0;i<histCount;i++){
+                printf("%d) %s = %lf \n", i+1,history[i],results[i]);
+            }
+            continue;
+        }
+
+        if(strcmp(infix,"MR") == 0){
+            if(memory_set){
+                printf("Memorie = %lf \n", memory);
+            }else{
+                printf("Memorie goala, nu a fost salvat nimic inca \n\n");
+            }
+
+            continue;
+        }
+
+        if(strcmp(infix,"MC") == 0){
+            memory_set = 0;
+            printf("Memoria a fost stearsa\n\n");
+            continue;
+        }
+
+        if(strncmp(infix,"M+", 2) == 0){
+
+            char expr[MAX];
+            strcpy(expr,infix+2);
+            infixToPosifix(expr,postfix,&postfixSize);
+            double rezultat = evaluatePostfix(postfix,postfixSize);
+            memory = memory + rezultat;
+            memory_set = 1;
+            printf("Rezultatul %lf a fost adaugat in memorie. Memorie = %lf \n", rezultat, memory);
+            continue;
+        }
+
+        infixToPosifix(infix,postfix, &postfixSize);
+
+        printf("Expresie in postfix : \n");
+
+        for(int i=0;i<postfixSize;i++){
+
+            printf("%s ", postfix[i]);
+        }
+
+        printf("\n");
+
+        double rezultat = evaluatePostfix(postfix,postfixSize);
+
+        printf("Rezultatul = %lf \n", rezultat);
+
+        if(histCount < memory_size){
+            strcpy(history[histCount], infix);
+            results[histCount] = rezultat;
+            histCount++;
+        }else{
+            for(int i=0;i<memory_size;i++){
+                strcpy(history[i-1],history[i]);
+                results[i-1] = results[i];
+            }
+            strcpy(history[memory_size-1], infix);
+            results[memory_size-1] = rezultat;
+        }
     }
-
-    printf("\n");
-
-    double rezultat = evaluatePostfix(postfix,postfixSize);
-
-    printf("Rezultatul = %lf \n", rezultat);
 
     return 0;
 }
