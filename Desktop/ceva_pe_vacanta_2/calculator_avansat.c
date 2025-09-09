@@ -70,7 +70,8 @@ int isOperator(const char *c) {
 }
 
 int isFuction(const char *c) {
-    return (strcmp(c,"sin") == 0 || strcmp(c,"cos") == 0 || strcmp(c,"sqrt") == 0 || strcmp(c,"log") == 0);
+    return (strcmp(c,"sin") == 0 || strcmp(c,"cos") == 0 || strcmp(c,"sqrt") == 0 || strcmp(c,"log") == 0 || strcmp(c,"CtoF") == 0 || 
+                strcmp(c,"FtoC") == 0 || strcmp(c,"DEG") == 0 || strcmp(c,"RAD") == 0 || strcmp(c,"BIN") == 0 || strcmp(c,"HEX") == 0);
 }
 
 int precedente_char(char op){
@@ -164,11 +165,37 @@ void infixToPosifix(const char *infix, char postfix[][MAX], int *postfixSize){
     }
 }
 
+void printBinary(int n){
 
-double evaluatePostfix(char postfix[][MAX], int size){
+    if(n==0){
+        printf("0");
+        return;
+    }
+
+    char buff[64];
+    int i=0;
+
+    while(n>0){
+
+        buff[i++] = (n%2) + '0';
+        n=n/2;
+    }
+
+    for(int j=i-1;j>=0;j--){
+        printf("%c", buff[j]);
+    }
+
+}
+
+void printHex(int n){
+    printf("%X", n);
+}
+
+double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
 
     DoubleStack s;
     initDoubleStack(&s);
+    *special_print = 0;
 
     for(int i=0;i<size;i++){
 
@@ -195,12 +222,35 @@ double evaluatePostfix(char postfix[][MAX], int size){
                 pushDouble(&s,sqrt(a));
             else if(strcmp(postfix[i],"log") == 0)
                 pushDouble(&s,log(a));
+            else if(strcmp(postfix[i],"CtoF") == 0)
+                pushDouble(&s,a* 9.0/5.0 + 32);
+            else if(strcmp(postfix[i],"FtoC") == 0)
+                pushDouble(&s,(a-32) * 5.0/9.0);
+            else if(strcmp(postfix[i],"DEG") == 0)
+                pushDouble(&s, a * M_PI / 180.0);
+            else if(strcmp(postfix[i],"RAD") == 0)
+                pushDouble(&s, a * 180.0 / M_PI);
+            else if(strcmp(postfix[i],"BIN") == 0){
+                printf("= ");
+                printBinary((int)a);
+                printf("\n");
+                *special_print = 1;
+            }
+            else if(strcmp(postfix[i],"HEX") == 0){
+                printf("= ");
+                printHex((int)a);
+                printf("\n");
+                *special_print = 1;
+            }
         }else{
             pushDouble(&s, atof(postfix[i]));
         }
     }
 
-    return popDouble(&s);
+    if(isEmptyDouble(&s))
+        return 0;
+    else
+        return popDouble(&s);
 }
 
 int main(){
@@ -208,6 +258,8 @@ int main(){
     char infix[MAX];
     char postfix[MAX][MAX];
     int postfixSize;
+
+    int special_print = 0;
 
     char history[memory_size][MAX];
     double results[memory_size];
@@ -217,6 +269,7 @@ int main(){
     int memory_set = 0;
 
     printf("Calculator avansat : \n");
+    printf("Functii speciale : sin,cos,sqrt,log,CtoF,FtoC,DEG,RAD,BIN,HEX \n");
     printf("Comanda peciala : history, M+,MR,MC <expresie>, quit \n\n");
 
     while(1){
@@ -257,7 +310,7 @@ int main(){
             char expr[MAX];
             strcpy(expr,infix+2);
             infixToPosifix(expr,postfix,&postfixSize);
-            double rezultat = evaluatePostfix(postfix,postfixSize);
+            double rezultat = evaluatePostfix(postfix,postfixSize,&special_print);
             memory = memory + rezultat;
             memory_set = 1;
             printf("Rezultatul %lf a fost adaugat in memorie. Memorie = %lf \n", rezultat, memory);
@@ -274,17 +327,19 @@ int main(){
         }
 
         printf("\n");
+        
+        int special_print = 0;
+        double rezultat = evaluatePostfix(postfix,postfixSize, &special_print);
 
-        double rezultat = evaluatePostfix(postfix,postfixSize);
-
-        printf("Rezultatul = %lf \n", rezultat);
+        if(!special_print)
+            printf("Rezultatul = %lf \n", rezultat);
 
         if(histCount < memory_size){
             strcpy(history[histCount], infix);
             results[histCount] = rezultat;
             histCount++;
         }else{
-            for(int i=0;i<memory_size;i++){
+            for(int i=1;i<memory_size;i++){
                 strcpy(history[i-1],history[i]);
                 results[i-1] = results[i];
             }
