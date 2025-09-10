@@ -267,9 +267,13 @@ void drawRect(SDL_Renderer *ren, SDL_Rect *r){
 }
 
 SDL_Texture *renderText(SDL_Renderer *ren, TTF_Font *font, const char *text){
-
+    
+    if(!font || !text) return NULL;
+    
     SDL_Color color = {255,255,255,255};
     SDL_Surface *surf = TTF_RenderUTF8_Blended(font,text,color);
+    if(!surf) return NULL;
+    
     SDL_Texture *tex = SDL_CreateTextureFromSurface(ren,surf);
     SDL_FreeSurface(surf);
     return tex;
@@ -292,20 +296,20 @@ void setUPButtons(Button btns[], int *btnCount){
     int startY = 240;
 
     const char *labels[BTN_ROWS * BTN_COLS] = {
-
         "7","8","9","/",
         "4","5","6","*",
-        "3","2","1","-",
-        ".","0","=","+",
-        "sin","cos","sqrt","log"
+        "1","2","3","-",
+        "0",".","=","+",
+        "sin","cos","sqrt","log",
+        "C","DEL","(",")"
     };
 
     int idx = 0;
-    for(int r=0;r<BTN_ROWS;r++){
-        for(int c=0;c<BTN_COLS;c++){
+    for(int r=0;r<BTN_ROWS && idx < BTN_ROWS * BTN_COLS;r++){
+        for(int c=0;c<BTN_COLS && idx < BTN_ROWS * BTN_COLS;c++){
             Button *b = &btns[idx];
             b->r.x = margin + c * (btnW + margin);
-            b->r.y = startY + c * (btnH + margin);
+            b->r.y = startY + r * (btnH + margin);
             b->r.w = btnW;
             b->r.h = btnH;
             strncpy(b->label,labels[idx],sizeof(b->label)-1);
@@ -332,7 +336,266 @@ void delLast(char *expr){
         expr[n-1] = '\0';
 }
 
-int main(){
+char historyExpr[hist_size][MAX];
+char historyResult[hist_size][MAX];
+int histCount = 0;
+
+double memoryValue = 0.0;
+int memorySet = 0;
+
+void addHistory(const char *expr, const char *resStr){
+
+    if(histCount < hist_size){
+
+        strcpy(historyExpr[histCount], expr);
+        strcpy(historyResult[histCount], resStr);
+        histCount++;
+    }else{
+        for(int i=1;i<hist_size;i++){
+
+         strcpy(historyExpr[i-1], historyExpr[i]);
+         strcpy(historyResult[i-1], historyResult[i]); 
+        }
+        strcpy(historyExpr[hist_size-1], expr);
+        strcpy(historyResult[hist_size-1], resStr);  
+    }
+}
+
+int main(int argc, char **argv){
+
+    if(SDL_Init(SDL_INIT_VIDEO) != 0){
+
+        fprintf(stderr, "SDL_Init error : %s \n", SDL_GetError());
+        return 1;
+    }
+
+    if(TTF_Init() != 0){
+
+        fprintf(stderr, "TTF_init error : %s \n", TTF_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Window *win = SDL_CreateWindow("Calculaor Avansat", SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED, WIN_W, WIN_H,0);
+    SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    TTF_Font *font = TTF_OpenFont("DejaVuSans.ttf", 18);
+
+    if(!font){
+        fprintf(stderr, "Nu a fost gasit acest font\n");
+        font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",18);
+        if(!font) {
+            // Try system font on macOS
+            font = TTF_OpenFont("/System/Library/Fonts/Supplemental/Arial.ttf", 18);
+            if(!font) {
+                fprintf(stderr, "Nu s-a putut deschide fontul\n");
+                // Continue without font - we'll add NULL checks later
+            }
+        }
+    }
+
+    char expr[MAX] = "";
+    char rezultSTR[MAX] = "";
+    char postfix[MAX][MAX];
+    int postfixSize = 0;
+
+    Button btns[BTN_ROWS * BTN_COLS];
+    int btnCnt = 0;
+    setUPButtons(btns,&btnCnt);
+
+    int running = 1;
+    SDL_Event ev;
+
+    while(running){
+
+        while(SDL_PollEvent(&ev)){
+
+            if(ev.type == SDL_QUIT)
+                running = 0;
+            else if(ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT){
+
+                int mx = ev.button.x;
+                int my = ev.button.y;
+
+                for(int i=0;i<btnCnt;i++){
+                    if(pointInRect(mx,my,&btns[i].r)){
+
+                        const char *lbl = btns[i].label;
+
+                        if(strcmp(lbl,"=") == 0){
+
+                            infixToPosifix(expr,postfix,&postfixSize);
+                            int special = 0;
+                            char specialBuf[MAX] = "";
+                            double res = evaluatePostfix(postfix,postfixSize, &special);
+                            if(special){
+                                snprintf(rezultSTR, sizeof(rezultSTR), "%s", specialBuf);
+                            }else{
+                                snprintf(rezultSTR, sizeof(rezultSTR), "%g", res);
+                            }
+
+                            addHistory(expr, rezultSTR);
+                        }else if (strcmp(lbl,"C") == 0){
+                            expr[0] = '\0';
+                            rezultSTR[0] = '\0';
+                        }else if (strcmp(lbl,"DEL") == 0){
+                            delLast(expr);
+                        }else {
+                            if(strcmp(lbl, "sin") == 0 || strcmp(lbl,"cos") == 0 || strcmp(lbl, "sqrt") == 0 || strcmp(lbl, "log") == 0){
+                                char tmp[MAX];
+                                snprintf(tmp,sizeof(tmp), "%s(", lbl);
+                                appendExpr(expr,tmp);
+                            }else{
+                                char t[32];
+                                int p=0;
+
+                                for(int k=0;k<(int)strlen(lbl);k++)
+                                    if(!isspace((unsigned char)lbl[k])) t[p++] = lbl[k];
+                                    t[p] = '\0';
+                                    appendExpr(expr,t);
+                            }
+                        }
+                    }
+                }
+            }else if (ev.type == SDL_KEYDOWN){
+                SDL_Keycode kc = ev.key.keysym.sym;
+                if(kc == SDLK_BACKSPACE) 
+                    delLast(expr);
+                else if(kc == SDLK_RETURN || kc == SDLK_KP_ENTER){
+                    
+                    infixToPosifix(expr,postfix,&postfixSize);
+                    int special = 0 ;
+                    char specialBuf[MAX] = "";
+                    double res = evaluatePostfix(postfix,postfixSize, &special);
+                    if(special)
+                        snprintf(rezultSTR,sizeof(rezultSTR), "%s", specialBuf);
+                    else
+                        snprintf(rezultSTR,sizeof(rezultSTR), "%g", res);
+                    addHistory(expr,rezultSTR);
+                }else if(kc == SDLK_ESCAPE)
+                    running = 0;
+                else{
+
+                    char ch = (char)ev.key.keysym.sym;
+                    if(isprint((unsigned char) ch ) && strlen(expr) < MAX - 2){
+
+                        int len = strlen(expr);
+                        expr[len] = ch;
+                        expr[len + 1] = '\0';
+                    }
+                }
+            }
+        }
+        
+        // Rendering code - moved outside of event polling loop
+        SDL_SetRenderDrawColor(ren,20,20,20,255);
+        SDL_RenderClear(ren);
+
+        SDL_Rect screenRect = {16,16,WIN_W - 32 , 180};
+        SDL_SetRenderDrawColor(ren,40,40,40,255);
+        SDL_RenderFillRect(ren,&screenRect);
+
+        if(font){
+
+            char exprRender[MAX * 2];
+            snprintf(exprRender, sizeof(exprRender), "%s", expr);
+
+            SDL_Texture *texExpr = renderText(ren,font,exprRender);
+
+            if(texExpr){
+
+                int tw,th;
+                SDL_QueryTexture(texExpr, NULL, NULL, &tw, &th);
+                SDL_Rect dst = {screenRect.x + 8, screenRect.y + 8, tw, th};
+                SDL_RenderCopy(ren, texExpr, NULL, &dst);
+                SDL_DestroyTexture(texExpr);
+            }
+
+            SDL_Texture *tesRes = renderText(ren,font,rezultSTR);
+
+            if(tesRes){
+
+                int tw,th;
+                SDL_QueryTexture(tesRes,NULL,NULL,&tw,&th);
+                SDL_Rect dst = {screenRect.x + 8, screenRect.y + 100 , tw, th};
+                SDL_RenderCopy(ren, tesRes, NULL, &dst);
+                SDL_DestroyTexture(tesRes);
+            }
+        }
+
+        for(int i=0;i<btnCnt;i++){
+
+            SDL_Rect r = btns[i].r;
+            SDL_SetRenderDrawColor(ren,80,80,80,255);
+            SDL_RenderFillRect(ren,&r);
+
+            SDL_SetRenderDrawColor(ren,120,120,120,255);
+            SDL_RenderDrawRect(ren,&r);
+
+            if(font){
+
+                SDL_Texture *t = renderText(ren,font,btns[i].label);
+
+                if(t){
+
+                    int tw,th;
+
+                    SDL_QueryTexture(t,NULL,NULL,&tw,&th);
+                    SDL_Rect dst = {r.x + (r.w-tw)/2, r.y + (r.h - th)/2, tw, th};
+                    SDL_RenderCopy(ren,t,NULL,&dst);
+                    SDL_DestroyTexture(t);
+                }
+            }
+        }
+        
+        int hx = 16, hy = 460;
+
+        if(font) {
+
+            SDL_Texture *hTitle = renderText(ren,font,"History:");
+            if(hTitle){
+                int tw,th;
+                SDL_QueryTexture(hTitle,NULL,NULL,&tw,&th);
+                SDL_Rect d = {hx,hy,tw,th};
+                SDL_RenderCopy(ren,hTitle,NULL,&d);
+                SDL_DestroyTexture(hTitle);
+
+                int lineY = hy + 22;
+
+                for(int i=0;i<histCount && i<6;i++){
+
+                    char line[256];
+                    snprintf(line,sizeof(line), "%d) %s = %s", i+1, historyExpr[i],historyResult[i]);
+
+                    SDL_Texture *t = renderText(ren,font,line);
+
+                    if(t){
+
+                        int tw,th;
+                        SDL_QueryTexture(t,NULL,NULL,&tw,&th);
+                        SDL_Rect d = {hx,lineY, tw, th};
+                        SDL_RenderCopy(ren,t,NULL,&d);
+                        SDL_DestroyTexture(t);
+                    }
+
+                    lineY = lineY + 18;
+                }
+            }
+
+            SDL_RenderPresent(ren);
+        }
+        
+        SDL_Delay(16);
+    }
+    
+    // Cleanup resources after main loop ends
+    if(font)
+        TTF_CloseFont(font);
+    
+    SDL_DestroyRenderer(ren);
+    SDL_DestroyWindow(win);
+    TTF_Quit();
+    SDL_Quit();
 
     return 0;
+    
 }
