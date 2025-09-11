@@ -290,7 +290,8 @@ int pointInRect(int x, int y, SDL_Rect *r){
 void setUPButtons(Button btns[], int *btnCount){
 
     int margin = 8;
-    int btnW = (WIN_W - (margin * (BTN_COLS + 1))) / BTN_COLS;
+    int buttonAreaW = WIN_W * 0.6; 
+    int btnW = (buttonAreaW - (margin * (BTN_COLS + 1))) / BTN_COLS;
     int btnH = 56;
 
     int startY = 240;
@@ -308,7 +309,8 @@ void setUPButtons(Button btns[], int *btnCount){
     for(int r=0;r<BTN_ROWS && idx < BTN_ROWS * BTN_COLS;r++){
         for(int c=0;c<BTN_COLS && idx < BTN_ROWS * BTN_COLS;c++){
             Button *b = &btns[idx];
-            b->r.x = margin + c * (btnW + margin);
+            int buttonsLeftX = margin; 
+            b->r.x = buttonsLeftX + c * (btnW + margin);
             b->r.y = startY + r * (btnH + margin);
             b->r.w = btnW;
             b->r.h = btnH;
@@ -384,11 +386,10 @@ int main(int argc, char **argv){
         fprintf(stderr, "Nu a fost gasit acest font\n");
         font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",18);
         if(!font) {
-            // Try system font on macOS
+
             font = TTF_OpenFont("/System/Library/Fonts/Supplemental/Arial.ttf", 18);
             if(!font) {
                 fprintf(stderr, "Nu s-a putut deschide fontul\n");
-                // Continue without font - we'll add NULL checks later
             }
         }
     }
@@ -486,13 +487,22 @@ int main(int argc, char **argv){
             }
         }
         
-        // Rendering code - moved outside of event polling loop
         SDL_SetRenderDrawColor(ren,20,20,20,255);
         SDL_RenderClear(ren);
 
-        SDL_Rect screenRect = {16,16,WIN_W - 32 , 180};
+        
+        SDL_Rect screenRect = {16,16, (int)(WIN_W * 0.6) - 32 , 180};
         SDL_SetRenderDrawColor(ren,40,40,40,255);
         SDL_RenderFillRect(ren,&screenRect);
+
+        
+        int histPanelX = (int)(WIN_W * 0.6) + 8;
+        int histPanelW = WIN_W - histPanelX - 16;
+        SDL_Rect histPanel = {histPanelX, 16, histPanelW, WIN_H - 32};
+        SDL_SetRenderDrawColor(ren,35,35,35,255);
+        SDL_RenderFillRect(ren, &histPanel);
+        SDL_SetRenderDrawColor(ren,80,80,80,255);
+        SDL_RenderDrawRect(ren, &histPanel);
 
         if(font){
 
@@ -547,9 +557,10 @@ int main(int argc, char **argv){
             }
         }
         
-        int hx = 16, hy = 460;
-
+        
         if(font) {
+            int hx = histPanelX + 8;
+            int hy = 24;
 
             SDL_Texture *hTitle = renderText(ren,font,"History:");
             if(hTitle){
@@ -559,35 +570,41 @@ int main(int argc, char **argv){
                 SDL_RenderCopy(ren,hTitle,NULL,&d);
                 SDL_DestroyTexture(hTitle);
 
-                int lineY = hy + 22;
+                int lineY = hy + 25;
+                int maxHistoryItems = (WIN_H - 80) / 20;
 
-                for(int i=0;i<histCount && i<6;i++){
-
+                
+                int startIdx = (histCount > maxHistoryItems) ? histCount - maxHistoryItems : 0;
+                
+                for(int i=startIdx; i<histCount && i<startIdx + maxHistoryItems; i++){
                     char line[256];
-                    snprintf(line,sizeof(line), "%d) %s = %s", i+1, historyExpr[i],historyResult[i]);
+                    snprintf(line,sizeof(line), "%s = %s", historyExpr[i],historyResult[i]);
 
                     SDL_Texture *t = renderText(ren,font,line);
 
                     if(t){
-
                         int tw,th;
                         SDL_QueryTexture(t,NULL,NULL,&tw,&th);
+                        
+                        
+                        int maxW = histPanelW - 16;
+                        if(tw > maxW) tw = maxW;
+                        
                         SDL_Rect d = {hx,lineY, tw, th};
                         SDL_RenderCopy(ren,t,NULL,&d);
                         SDL_DestroyTexture(t);
                     }
 
-                    lineY = lineY + 18;
+                    lineY += 20;
                 }
             }
-
-            SDL_RenderPresent(ren);
         }
+
+        SDL_RenderPresent(ren);
         
         SDL_Delay(16);
     }
     
-    // Cleanup resources after main loop ends
     if(font)
         TTF_CloseFont(font);
     
