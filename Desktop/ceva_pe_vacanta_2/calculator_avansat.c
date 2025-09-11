@@ -8,6 +8,9 @@
 #define MAX 100
 #define memory_size 100
 
+// Global angle mode: 0 = radians, 1 = degrees
+int angle_mode = 0;
+
 typedef struct {
 
     char data[MAX][MAX];
@@ -66,12 +69,13 @@ double popDouble(DoubleStack *s){
 }
 
 int isOperator(const char *c) {
-    return (strcmp(c,"+") == 0 || strcmp(c,"-") == 0 || strcmp(c,"*") == 0 || strcmp(c,"/") == 0);
+    return (strcmp(c,"+") == 0 || strcmp(c,"-") == 0 || strcmp(c,"*") == 0 || strcmp(c,"/") == 0 || strcmp(c,"^") == 0);
 }
 
 int isFuction(const char *c) {
     return (strcmp(c,"sin") == 0 || strcmp(c,"cos") == 0 || strcmp(c,"sqrt") == 0 || strcmp(c,"log") == 0 || strcmp(c,"CtoF") == 0 || 
-                strcmp(c,"FtoC") == 0 || strcmp(c,"DEG") == 0 || strcmp(c,"RAD") == 0 || strcmp(c,"BIN") == 0 || strcmp(c,"HEX") == 0);
+                strcmp(c,"FtoC") == 0 || strcmp(c,"DEG") == 0 || strcmp(c,"RAD") == 0 || strcmp(c,"BIN") == 0 || strcmp(c,"HEX") == 0 ||
+                strcmp(c,"pow") == 0);
 }
 
 int precedente_char(char op){
@@ -90,8 +94,11 @@ int precedente(const char *op){
     if(strcmp(op, "*") == 0 || strcmp(op, "/") == 0)
         return 2;
     
-    if(isFuction(op))
+    if(strcmp(op, "^") == 0)
         return 3;
+    
+    if(isFuction(op))
+        return 4;
 
     return 0;
 }
@@ -147,12 +154,20 @@ void infixToPosifix(const char *infix, char postfix[][MAX], int *postfixSize){
             }
         }
 
-        else if(infix[i] == '+' || infix[i] == '-' || infix[i] == '*' || infix[i] == '/'){
+        else if(infix[i] == '+' || infix[i] == '-' || infix[i] == '*' || infix[i] == '/' || infix[i] == '^'){
             char current_op[2] = {infix[i], '\0'};
             
-            while(!isEmptyChar(&s) && strcmp(peekChar(&s), "(") != 0 && 
-                  precedente(peekChar(&s)) >= precedente(current_op)){
-                strcpy(postfix[(*postfixSize)++], popChar(&s));
+            // Right associative for ^ (exponentiation)
+            if(infix[i] == '^'){
+                while(!isEmptyChar(&s) && strcmp(peekChar(&s), "(") != 0 && 
+                      precedente(peekChar(&s)) > precedente(current_op)){
+                    strcpy(postfix[(*postfixSize)++], popChar(&s));
+                }
+            } else {
+                while(!isEmptyChar(&s) && strcmp(peekChar(&s), "(") != 0 && 
+                      precedente(peekChar(&s)) >= precedente(current_op)){
+                    strcpy(postfix[(*postfixSize)++], popChar(&s));
+                }
             }
             pushChar(&s, current_op);
         }
@@ -210,36 +225,67 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
                 case '-' : pushDouble(&s, a - b); break;
                 case '*' : pushDouble(&s, a * b); break;
                 case '/' : pushDouble(&s, a / b); break;
+                case '^' : pushDouble(&s, pow(a, b)); break;
             }
         }else if(isFuction(postfix[i])){
-            double a = popDouble(&s);
-
-            if(strcmp(postfix[i],"sin") == 0)
+            
+            if(strcmp(postfix[i],"sin") == 0){
+                double a = popDouble(&s);
+                // Apply angle mode conversion
+                if(angle_mode == 1) a = a * M_PI / 180.0; // degrees to radians
                 pushDouble(&s,sin(a));
-            else if(strcmp(postfix[i],"cos") == 0)
+            }
+            else if(strcmp(postfix[i],"cos") == 0){
+                double a = popDouble(&s);
+                // Apply angle mode conversion
+                if(angle_mode == 1) a = a * M_PI / 180.0; // degrees to radians
                 pushDouble(&s,cos(a));
-            else if(strcmp(postfix[i],"sqrt") == 0)
+            }
+            else if(strcmp(postfix[i],"sqrt") == 0){
+                double a = popDouble(&s);
                 pushDouble(&s,sqrt(a));
-            else if(strcmp(postfix[i],"log") == 0)
+            }
+            else if(strcmp(postfix[i],"log") == 0){
+                double a = popDouble(&s);
                 pushDouble(&s,log(a));
-            else if(strcmp(postfix[i],"CtoF") == 0)
+            }
+            else if(strcmp(postfix[i],"CtoF") == 0){
+                double a = popDouble(&s);
                 pushDouble(&s,a* 9.0/5.0 + 32);
-            else if(strcmp(postfix[i],"FtoC") == 0)
+            }
+            else if(strcmp(postfix[i],"FtoC") == 0){
+                double a = popDouble(&s);
                 pushDouble(&s,(a-32) * 5.0/9.0);
-            else if(strcmp(postfix[i],"DEG") == 0)
-                pushDouble(&s, a * M_PI / 180.0);
-            else if(strcmp(postfix[i],"RAD") == 0)
-                pushDouble(&s, a * 180.0 / M_PI);
+            }
+            else if(strcmp(postfix[i],"DEG") == 0){
+                // Set angle mode to degrees, don't pop/push values
+                angle_mode = 1;
+                pushDouble(&s, 0); // Push dummy value for postfix evaluation
+            }
+            else if(strcmp(postfix[i],"RAD") == 0){
+                // Set angle mode to radians, don't pop/push values  
+                angle_mode = 0;
+                pushDouble(&s, 0); // Push dummy value for postfix evaluation
+            }
+            else if(strcmp(postfix[i],"pow") == 0){
+                double b = popDouble(&s);
+                double a = popDouble(&s);
+                pushDouble(&s, pow(a, b));
+            }
             else if(strcmp(postfix[i],"BIN") == 0){
+                double a = popDouble(&s);
                 printf("= ");
                 printBinary((int)a);
                 printf("\n");
+                pushDouble(&s, a); // Store the original value for history
                 *special_print = 1;
             }
             else if(strcmp(postfix[i],"HEX") == 0){
+                double a = popDouble(&s);
                 printf("= ");
                 printHex((int)a);
                 printf("\n");
+                pushDouble(&s, a); // Store the original value for history
                 *special_print = 1;
             }
         }else{
@@ -253,9 +299,43 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
         return popDouble(&s);
 }
 
+void replace_ans(const char *in, char *out, double ans){
+
+    char buf_ans[64];
+    snprintf(buf_ans,sizeof(buf_ans),"%.15g",ans);
+
+    int i=0;
+    int o=0;
+
+    while(in[i] != '\0'){
+
+        if(in[i] && in[i+1] && in[i+2] && 
+            tolower((unsigned char) in[i]) == 'a' && 
+                tolower((unsigned char) in[i+1]) == 'n' && 
+                    tolower((unsigned char) in[i+2]) == 's'){
+
+                        int prev_ans = (i > 0 && (isalnum((unsigned char) in[i-1]) || in[i-1] == '_'));
+                        int next_ans = (isalnum((unsigned char) in[i+3]) || in[i+3] == '_');
+                        if(!prev_ans && !next_ans){
+
+                            int k=0;
+                            while(buf_ans[k])
+                                out[o++] = buf_ans[k++];
+                            i = i + 3;
+                            continue;
+                        }
+                    }
+
+        out[o++] = in[i++];
+    }
+
+    out[o] = '\0';
+}
+
 int main(){
 
     char infix[MAX];
+    char tempExpr[MAX];
     char postfix[MAX][MAX];
     int postfixSize;
 
@@ -268,9 +348,13 @@ int main(){
     double memory = 0.0;
     int memory_set = 0;
 
+    double lastResult = 0.0;
+    int lastSet = 0;
+
     printf("Calculator avansat : \n");
-    printf("Functii speciale : sin,cos,sqrt,log,CtoF,FtoC,DEG,RAD,BIN,HEX \n");
-    printf("Comanda peciala : history, M+,MR,MC <expresie>, quit \n\n");
+    printf("Functii speciale : sin,cos,sqrt,log,pow,CtoF,FtoC,DEG,RAD,BIN,HEX \n");
+    printf("Operatori : +, -, *, /, ^ (exponentiere) \n");
+    printf("Comanda peciala : history, M+,M-,MR,MC,MS <expresie>, quit \n\n");
 
     while(1){
 
@@ -305,6 +389,15 @@ int main(){
             continue;
         }
 
+        if(strcmp(infix, "ANS") == 0){
+
+            if(lastSet)
+                printf("ANS = %g \n", lastResult);
+            else 
+                printf("ANS nu e setat inca \n");
+            continue;
+        }
+
         if(strncmp(infix,"M+", 2) == 0){
 
             char expr[MAX];
@@ -316,6 +409,32 @@ int main(){
             printf("Rezultatul %lf a fost adaugat in memorie. Memorie = %lf \n", rezultat, memory);
             continue;
         }
+
+        if(strncmp(infix,"MS",2) == 0){
+
+            char expr[MAX];
+            strcpy(expr,infix+2);
+            infixToPosifix(expr,postfix,&postfixSize);
+            double rezultat = evaluatePostfix(postfix,postfixSize,&special_print);
+            memory = rezultat;
+            memory_set = 1;
+            printf("Rezultatul %lf a fost salvat in memeorie. Memoria  = %lf \n", rezultat, memory);
+            continue;
+        }
+
+        if(strncmp(infix,"M-",2) == 0){
+            
+            char expr[MAX];
+            strcpy(expr,infix+2);
+            infixToPosifix(expr,postfix,&postfixSize);
+            double rezultat = evaluatePostfix(postfix,postfixSize,&special_print);
+            memory = memory - rezultat;
+            memory_set = 1;
+            printf("Rezulataul %lf a fsot scazut din memorie. Memoria = %lf \n", rezultat,memory);
+            continue;
+        }
+
+        replace_ans(infix,tempExpr,lastResult);
 
         infixToPosifix(infix,postfix, &postfixSize);
 
@@ -331,11 +450,14 @@ int main(){
         int special_print = 0;
         double rezultat = evaluatePostfix(postfix,postfixSize, &special_print);
 
-        if(!special_print)
+        if(!special_print){
             printf("Rezultatul = %lf \n", rezultat);
+            lastResult = rezultat;
+            lastSet = 1;
+        }
 
         if(histCount < memory_size){
-            strcpy(history[histCount], infix);
+            strcpy(history[histCount], tempExpr);
             results[histCount] = rezultat;
             histCount++;
         }else{
@@ -343,7 +465,7 @@ int main(){
                 strcpy(history[i-1],history[i]);
                 results[i-1] = results[i];
             }
-            strcpy(history[memory_size-1], infix);
+            strcpy(history[memory_size-1], tempExpr);
             results[memory_size-1] = rezultat;
         }
     }
