@@ -11,6 +11,8 @@
 #define WIN_W 600
 #define WIN_H 800
 
+int afterEquals = 0;
+
 typedef struct {
 
     char data[MAX][MAX];
@@ -323,12 +325,23 @@ void setUPButtons(Button btns[], int *btnCount){
     *btnCount = idx;
 }
 
-void appendExpr(char *expr, const char *token){
+void appendExpr(char *expr, const char *token, char *resultatSTR){
 
     if(strlen(expr) + strlen(token) + 1 >= MAX) 
         return;
 
+
+    if(strlen(expr) + strlen(token) < MAX-1){
+    if(afterEquals){  
+        
+        expr[0] = '\0';
+        resultatSTR[0] = '\0';
+        afterEquals = 0;
+    }
+
     strcat(expr,token);
+}
+
 }
 
 void delLast(char *expr){
@@ -435,6 +448,11 @@ int main(int argc, char **argv){
                             }
 
                             addHistory(expr, rezultSTR);
+
+                            expr[0] = '\0';
+
+                            afterEquals = 1;
+
                         }else if (strcmp(lbl,"C") == 0){
                             expr[0] = '\0';
                             rezultSTR[0] = '\0';
@@ -444,7 +462,7 @@ int main(int argc, char **argv){
                             if(strcmp(lbl, "sin") == 0 || strcmp(lbl,"cos") == 0 || strcmp(lbl, "sqrt") == 0 || strcmp(lbl, "log") == 0){
                                 char tmp[MAX];
                                 snprintf(tmp,sizeof(tmp), "%s(", lbl);
-                                appendExpr(expr,tmp);
+                                appendExpr(expr,tmp, rezultSTR);
                             }else{
                                 char t[32];
                                 int p=0;
@@ -452,7 +470,7 @@ int main(int argc, char **argv){
                                 for(int k=0;k<(int)strlen(lbl);k++)
                                     if(!isspace((unsigned char)lbl[k])) t[p++] = lbl[k];
                                     t[p] = '\0';
-                                    appendExpr(expr,t);
+                                    appendExpr(expr,t, rezultSTR);
                             }
                         }
                     }
@@ -472,6 +490,11 @@ int main(int argc, char **argv){
                     else
                         snprintf(rezultSTR,sizeof(rezultSTR), "%g", res);
                     addHistory(expr,rezultSTR);
+
+                    expr[0] = '\0';
+
+                    afterEquals = 1;
+
                 }else if(kc == SDLK_ESCAPE)
                     running = 0;
                 else{

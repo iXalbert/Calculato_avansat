@@ -8,7 +8,6 @@
 #define MAX 100
 #define memory_size 100
 
-// Global angle mode: 0 = radians, 1 = degrees
 int angle_mode = 0;
 
 typedef struct {
@@ -157,7 +156,6 @@ void infixToPosifix(const char *infix, char postfix[][MAX], int *postfixSize){
         else if(infix[i] == '+' || infix[i] == '-' || infix[i] == '*' || infix[i] == '/' || infix[i] == '^'){
             char current_op[2] = {infix[i], '\0'};
             
-            // Right associative for ^ (exponentiation)
             if(infix[i] == '^'){
                 while(!isEmptyChar(&s) && strcmp(peekChar(&s), "(") != 0 && 
                       precedente(peekChar(&s)) > precedente(current_op)){
@@ -231,14 +229,14 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
             
             if(strcmp(postfix[i],"sin") == 0){
                 double a = popDouble(&s);
-                // Apply angle mode conversion
-                if(angle_mode == 1) a = a * M_PI / 180.0; // degrees to radians
+                
+                if(angle_mode == 1) a = a * M_PI / 180.0; 
                 pushDouble(&s,sin(a));
             }
             else if(strcmp(postfix[i],"cos") == 0){
                 double a = popDouble(&s);
-                // Apply angle mode conversion
-                if(angle_mode == 1) a = a * M_PI / 180.0; // degrees to radians
+                
+                if(angle_mode == 1) a = a * M_PI / 180.0; 
                 pushDouble(&s,cos(a));
             }
             else if(strcmp(postfix[i],"sqrt") == 0){
@@ -258,14 +256,14 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
                 pushDouble(&s,(a-32) * 5.0/9.0);
             }
             else if(strcmp(postfix[i],"DEG") == 0){
-                // Set angle mode to degrees, don't pop/push values
+                
                 angle_mode = 1;
-                pushDouble(&s, 0); // Push dummy value for postfix evaluation
+                pushDouble(&s, 0); 
             }
             else if(strcmp(postfix[i],"RAD") == 0){
-                // Set angle mode to radians, don't pop/push values  
+
                 angle_mode = 0;
-                pushDouble(&s, 0); // Push dummy value for postfix evaluation
+                pushDouble(&s, 0); 
             }
             else if(strcmp(postfix[i],"pow") == 0){
                 double b = popDouble(&s);
@@ -277,7 +275,7 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
                 printf("= ");
                 printBinary((int)a);
                 printf("\n");
-                pushDouble(&s, a); // Store the original value for history
+                pushDouble(&s, a); 
                 *special_print = 1;
             }
             else if(strcmp(postfix[i],"HEX") == 0){
@@ -285,7 +283,7 @@ double evaluatePostfix(char postfix[][MAX], int size, int *special_print){
                 printf("= ");
                 printHex((int)a);
                 printf("\n");
-                pushDouble(&s, a); // Store the original value for history
+                pushDouble(&s, a); 
                 *special_print = 1;
             }
         }else{
